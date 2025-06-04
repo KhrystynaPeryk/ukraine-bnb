@@ -1,0 +1,1 @@
+change useCountries to useUARegions and probably use this package https://www.npmjs.com/package/@svg-maps/ukraine
