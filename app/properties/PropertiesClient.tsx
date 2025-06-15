@@ -1,38 +1,60 @@
 'use client'
 
 import { useRouter } from "next/navigation"
-import { Reservation, User, Listing} from "@prisma/client"
+import { User, Listing} from "@prisma/client"
 import Container from "../components/Container"
 import Heading from "../components/Heading"
 import { useCallback, useState } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import ListingCard from "../components/listings/ListingCard"
+import { getAuth } from "firebase/auth"
 
 interface PropertiesClientProps {
     listings: Listing[],
-    currentUser?: User | null
+    onListingChange?: () => void // Add callback prop
 }
 
-const PropertiesClient = ({listings, currentUser}: PropertiesClientProps) => {
-    const router = useRouter()
+const PropertiesClient = ({ listings, onListingChange }: PropertiesClientProps) => {
     const [deletingId, setDeletingId] = useState('')
 
-    const onCancel = useCallback((id: string) => {
+    const onCancel = useCallback(async (id: string) => {
         setDeletingId(id)
 
-        axios.delete(`/api/listings/${id}`)
-        .then(() => {
-            toast.success('Listing deleted')
-            router.refresh()
-        })
-        .catch((error) => {
-            toast.error(error?.response?.data?.error)
-        })
-        .finally(() => {
-            setDeletingId('')
-        })
-    }, [router])
+        try {
+            // Get Firebase user for UID
+            const auth = getAuth();
+            const firebaseUser = auth.currentUser;
+            
+            if (!firebaseUser) {
+                toast.error('Authentication required');
+                setDeletingId('');
+                return;
+            }
+
+            // Create axios config with Firebase UID in headers
+            const config = {
+                headers: {
+                    'x-firebase-uid': firebaseUser.uid
+                }
+            };
+
+            await axios.delete(`/api/listings/${id}`, config);
+            
+            toast.success('Listing deleted');
+            
+            // Call the callback to refresh listings
+            if (onListingChange) {
+                await onListingChange();
+            }
+            
+        } catch (error: any) {
+            console.error('Delete listing error:', error);
+            toast.error(error?.response?.data?.error || 'Something went wrong');
+        } finally {
+            setDeletingId('');
+        }
+    }, [onListingChange])
 
     return (
         <Container>
@@ -46,7 +68,6 @@ const PropertiesClient = ({listings, currentUser}: PropertiesClientProps) => {
                         onAction={onCancel}
                         disabled={deletingId === listing.id}
                         actionLabel="Delete property"
-                        currentUser={currentUser}
                     />
                 ))}
             </div>

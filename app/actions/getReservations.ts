@@ -34,14 +34,6 @@ export default async function getReservations(
 
         return reservations
 
-        // const safeReservations = reservations.map(
-        //     (reservation) => ({
-        //         ...reservation,
-        //         listing: {
-        //             ...reservation.listing
-        //         }
-        //     })
-        // )
     } catch (error: any) {
         throw new Error(error)
     }

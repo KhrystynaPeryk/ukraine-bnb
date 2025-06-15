@@ -8,35 +8,57 @@ import { useCallback, useState } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import ListingCard from "../components/listings/ListingCard"
-
+import { getAuth } from "firebase/auth"
 
 // Safe reservation + listing type
 export type ReservationWithListing = Reservation & { listing: Listing };
 
 interface TripsClientProps {
     reservations: ReservationWithListing[],
-    currentUser?: User | null
+    onReservationChange?: () => void // Add callback prop
 }
 
-const TripsClient = ({reservations, currentUser}: TripsClientProps) => {
+const TripsClient = ({ reservations, onReservationChange }: TripsClientProps) => {
     const router = useRouter()
     const [deletingId, setDeletingId] = useState('')
 
-    const onCancel = useCallback((id: string) => {
+    const onCancel = useCallback(async (id: string) => {
         setDeletingId(id)
 
-        axios.delete(`/api/reservations/${id}`)
-        .then(() => {
-            toast.success('Reservation cancelled')
-            router.refresh()
-        })
-        .catch((error) => {
-            toast.error(error?.response?.data?.error)
-        })
-        .finally(() => {
-            setDeletingId('')
-        })
-    }, [router])
+        try {
+            // Get Firebase user for UID
+            const auth = getAuth();
+            const firebaseUser = auth.currentUser;
+            
+            if (!firebaseUser) {
+                toast.error('Authentication required');
+                setDeletingId('');
+                return;
+            }
+
+            // Create axios config with Firebase UID in headers
+            const config = {
+                headers: {
+                    'x-firebase-uid': firebaseUser.uid
+                }
+            };
+
+            await axios.delete(`/api/reservations/${id}`, config);
+            
+            toast.success('Reservation cancelled');
+            
+            // Call the callback to refresh reservations list
+            if (onReservationChange) {
+                await onReservationChange();
+            }
+            
+        } catch (error: any) {
+            console.error('Cancellation error:', error);
+            toast.error(error?.response?.data?.error || 'Something went wrong');
+        } finally {
+            setDeletingId('');
+        }
+    }, [onReservationChange])
 
     return (
         <Container>
@@ -51,7 +73,6 @@ const TripsClient = ({reservations, currentUser}: TripsClientProps) => {
                         onAction={onCancel}
                         disabled={deletingId === reservation.id}
                         actionLabel="Cancel reservation"
-                        currentUser={currentUser}
                     />
                 ))}
             </div>

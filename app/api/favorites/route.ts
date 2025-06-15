@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
-
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/libs/prismadb";
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ reservationId: string }>}) {
-    try{
+export async function GET(request: NextRequest) {
+    try {
         // Get Firebase UID from headers
         const firebaseUid = request.headers.get('x-firebase-uid');
         
@@ -20,25 +19,24 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ r
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
-        const {reservationId} = await params
-
-        if (!reservationId || typeof reservationId !== 'string') {
-            throw new Error('Invalid ID')
-        }
-
-        const reservation = await prisma.reservation.deleteMany({
+        // Get favorite listings
+        const favorites = await prisma.listing.findMany({
             where: {
-                id: reservationId,
-                OR: [
-                    {userId: currentUser.id},
-                    {listing: {userId: currentUser.id }}
-                ]
+                id: {
+                    in: [...(currentUser.favoriteIds || [])]
+                }
+            },
+            include: {
+                user: true // Include user data if needed
+            },
+            orderBy: {
+                createdAt: 'desc'
             }
-        })
+        });
 
-        return NextResponse.json(reservation)
+        return NextResponse.json(favorites);
     } catch (error) {
-        console.error('Error deleting reservation:', error);
+        console.error('Error fetching favorites:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }

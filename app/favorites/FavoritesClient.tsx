@@ -1,16 +1,16 @@
 'use client'
 
-import { Listing, User } from "@prisma/client"
+import { Listing } from "@prisma/client"
 import Container from "../components/Container"
 import Heading from "../components/Heading"
 import ListingCard from "../components/listings/ListingCard"
 
 interface FavoritesClientProps {
     listings: Listing[],
-    currentUser?: User | null
+    onFavoriteChange?: () => void
 }
 
-const FavoritesClient = ({listings, currentUser}: FavoritesClientProps) => {
+const FavoritesClient = ({ listings, onFavoriteChange }: FavoritesClientProps) => {
     return (
         <Container>
             <Heading title="Favorites" subtitle="List of places you have favorited"/>
@@ -19,7 +19,7 @@ const FavoritesClient = ({listings, currentUser}: FavoritesClientProps) => {
                     <ListingCard 
                         key={listing.id}
                         data={listing}
-                        currentUser={currentUser}
+                        onFavoriteChange={onFavoriteChange}
                     />
                 ))}
             </div>

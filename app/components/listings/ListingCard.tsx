@@ -1,7 +1,7 @@
 'use client'
 
 import useCountries from "@/app/hooks/useCountries"
-import { Listing, Reservation, User } from "@prisma/client"
+import { Listing, Reservation } from "@prisma/client"
 import { useRouter } from "next/navigation"
 import { useCallback, useMemo } from "react"
 import {format} from 'date-fns'
@@ -16,7 +16,7 @@ interface ListingCardProps{
     disabled?: boolean,
     actionLabel?: string,
     actionId?: string,
-    currentUser?: User | null
+    onFavoriteChange?: () => void // Add this prop
 }
 
 const ListingCard = ({
@@ -26,7 +26,7 @@ const ListingCard = ({
     disabled,
     actionLabel,
     actionId = "",
-    currentUser
+    onFavoriteChange // Add this prop
 }: ListingCardProps) => {
 
     const router = useRouter()
@@ -52,7 +52,6 @@ const ListingCard = ({
         return data.price
     }, [reservation, data.price])
 
-
     const reservationDate = useMemo(() => {
         if (!reservation) {
             return null
@@ -70,7 +69,10 @@ const ListingCard = ({
                 <div className="aspect-square w-full relative overflow-hidden rounded-xl">
                     <Image alt='Listing' src={data.imageSrc} className="object-cover h-full w-full group-hover:scale-110 transition" fill/>
                     <div className="absolute top-3 right-3">
-                        <HeartButton listingId={data.id} currentUser={currentUser}/>
+                        <HeartButton 
+                            listingId={data.id}
+                            onFavoriteChange={onFavoriteChange} // Pass to HeartButton
+                        />
                     </div>
                 </div>
                 <div className="font-semibold text-lg">

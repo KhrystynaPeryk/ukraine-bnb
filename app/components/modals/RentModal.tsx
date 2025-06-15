@@ -14,6 +14,7 @@ import Input from "../inputs/Input"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { useRouter } from "next/navigation"
+import { getAuth } from "firebase/auth"
 
 enum STEPS {
     CATEGORY = 0,
@@ -77,7 +78,24 @@ const RentModal = () => {
 
         setIsLoading(true)
 
-        axios.post('/api/listings', data)
+        // Get Firebase user for UID
+        const auth = getAuth();
+        const firebaseUser = auth.currentUser;
+            
+        if (!firebaseUser) {
+            toast.error('You must be logged in to create a listing');
+            setIsLoading(false);
+            return;
+        }
+
+        // Create axios config with Firebase UID in headers
+        const config = {
+            headers: {
+                'x-firebase-uid': firebaseUser.uid
+            }
+        }
+        console.log(data)
+        axios.post('/api/listings', data, config)
         .then(() => {
             toast.success('Listing Created!')
             router.refresh()
@@ -85,8 +103,8 @@ const RentModal = () => {
             setStep(STEPS.CATEGORY)
             rentModal.onClose()
         })
-        .catch(() => {
-            toast.error('Something went wrong!')
+        .catch((error) => {
+            toast.error('Something went wrong!', error)
         })
         .finally(() => {
             setIsLoading(false)

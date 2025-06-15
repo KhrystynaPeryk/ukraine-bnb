@@ -13,6 +13,8 @@ import axios from "axios"
 import toast from "react-hot-toast"
 import ListingReservation from "@/app/components/listings/ListingReservation"
 import { Range } from "react-date-range"
+import { useCurrentUser } from "@/app/hooks/useCurrentUser.ts"
+import { getAuth } from "firebase/auth"
 
 const initialDateRange = {
     startDate: new Date(),
@@ -25,11 +27,11 @@ interface ListingClientProps {
     listing: Listing & {
         user: User
     },
-    currentUser?: User | null
 }
 
-const ListingClient = ({reservations = [], listing, currentUser}: ListingClientProps) => {
+const ListingClient = ({reservations = [], listing}: ListingClientProps) => {
 
+    const {currentUser} = useCurrentUser()
     const loginModal = useLoginModal()
     const router = useRouter()
     const disabledDates = useMemo(() => {
@@ -57,20 +59,34 @@ const ListingClient = ({reservations = [], listing, currentUser}: ListingClientP
         }
 
         setIsLoading(true)
+            // Get Firebase user for UID
+        const auth = getAuth();
+        const firebaseUser = auth.currentUser;
+            
+        if (!firebaseUser) {
+            toast.error('Authentication required');
+            return loginModal.onOpen();
+        }
+        // Create axios config with Firebase UID in headers
+        const config = {
+            headers: {
+                'x-firebase-uid': firebaseUser.uid
+            }
+        };
 
         axios.post('/api/reservations', {
             totalPrice,
             startDate: dateRange.startDate,
             endDate: dateRange.endDate,
             listingId: listing?.id
-        })
+        }, config)
         .then(() => {
             toast.success('Listing reserved!')
             setDateRange(initialDateRange)
             router.push('/trips')
         })
-        .catch(() => {
-            toast.error('Something went wrong')
+        .catch((error: any) => {
+            toast.error(error.response?.data?.error || 'Something went wrong')
         })
         .finally(() => {
             setIsLoading(false)
@@ -97,7 +113,7 @@ const ListingClient = ({reservations = [], listing, currentUser}: ListingClientP
         <Container>
             <div className="max-w-screen-lg mx-auto">
                 <div className="flex flex-col gap-6">
-                    <ListingHead title={listing.title} imageSrc={listing.imageSrc} locationValue={listing.locationValue} id={listing.id} currentUser={currentUser} />
+                    <ListingHead title={listing.title} imageSrc={listing.imageSrc} locationValue={listing.locationValue} id={listing.id} />
                     <div className="grid grid-cols-1 md:grid-cols-7 md:gap-10 mt-6">
                         <ListingInfo 
                             user={listing.user} 
