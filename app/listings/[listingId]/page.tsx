@@ -1,4 +1,3 @@
-'use client'
 import getListingById from "@/app/actions/getListingById"
 import EmptyState from "@/app/components/EmptyState"
 import ListingClient from "./ListingClient"

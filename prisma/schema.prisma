@@ -25,9 +25,6 @@ model User {
   reservations Reservation[]
 }
 
-// Remove Account model - no longer needed with Firebase
-// model Account { ... } <- DELETE THIS
-
 model Listing {
   id String @id @default(auto()) @map("_id") @db.ObjectId
   title String

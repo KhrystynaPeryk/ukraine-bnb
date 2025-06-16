@@ -6,11 +6,14 @@ interface StatCard {
     icon: IconType,
     label: string,
     value: number,
-    color: string
+    color: string,
+    onClick: () => void
 }
 
-    const StatCard = ({ icon: Icon, label, value, color }: StatCard) => (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+    const StatCard = ({ icon: Icon, label, value, color, onClick }: StatCard) => (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow hover:cursor-pointer"
+            onClick={onClick}
+        >
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm font-medium text-gray-600">{label}</p>

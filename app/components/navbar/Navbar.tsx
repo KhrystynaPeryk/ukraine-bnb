@@ -6,7 +6,6 @@ import Search from "./Search"
 import UserMenu from "./UserMenu"
 import Categories from "./Categories"
 
-// Remove currentUser prop since UserMenu now handles auth internally
 const Navbar = () => {
     return (
         <div className="fixed w-full bg-white z-10 shadow-sm">

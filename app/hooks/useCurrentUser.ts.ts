@@ -51,8 +51,18 @@ export function useCurrentUser() {
       }
     });
 
-    return () => unsubscribe();
-  }, [fetchUser]);
+    // Listen for user updates from profile page
+    const handleUserUpdate = () => {
+      refreshUser();
+    };
+
+    window.addEventListener('userUpdated', handleUserUpdate);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('userUpdated', handleUserUpdate);
+    };
+  }, [fetchUser, refreshUser]);
 
   return { currentUser, loading, refreshUser };
 }

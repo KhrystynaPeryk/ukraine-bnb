@@ -7,10 +7,11 @@ import { getAuth, updatePassword, updateProfile } from "firebase/auth"
 import { useAuth } from "../contexts/AuthContext"
 import toast from "react-hot-toast"
 import { FiEdit2, FiUser, FiMail, FiLock, FiHome, FiCalendar, FiMapPin } from "react-icons/fi"
-import { MdPhotoCamera } from "react-icons/md"
-import Avatar from "../components/Avatar"
-import ImageUpload from "../components/inputs/ImageUpload"
+import Input from "../components/inputs/Input"
 import StatCard from "../components/profile/StatCard"
+import AvatarUpload from "../components/inputs/AvatarUpload"
+import { useForm, FieldValues, SubmitHandler } from "react-hook-form"
+import { useRouter } from "next/navigation"
 
 interface ProfileClientProps {
     currentUser: User
@@ -21,23 +22,50 @@ interface ProfileClientProps {
     }
 }
 
-const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
+const ProfileClient = ({ currentUser: initialUser, stats }: ProfileClientProps) => {
     const { currentUser: firebaseUser } = useAuth()
     const [isEditing, setIsEditing] = useState(false)
     const [isEditingPassword, setIsEditingPassword] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
+    const router = useRouter()
+    
+    // Use local state for current user to enable immediate UI updates
+    const [currentUser, setCurrentUser] = useState(initialUser)
+    
     const [profileData, setProfileData] = useState({
         name: currentUser.name || '',
         email: currentUser.email || '',
         image: currentUser.image || ''
     })
-    const [passwordData, setPasswordData] = useState({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: ''
+    
+
+    // React Hook Form for profile editing
+    const profileForm = useForm<FieldValues>({
+        defaultValues: {
+            name: currentUser.name || '',
+        }
     })
 
-    const handleUpdateProfile = useCallback(async () => {
+    // Watch for image changes to update avatar immediately
+    const handleImageChange = useCallback((value: string) => {
+        setProfileData(prev => ({ ...prev, image: value }))
+        toast.success('Profile photo updated! Don\'t forget to save your changes.')
+    }, [])
+
+    // React Hook Form for password change
+    const passwordForm = useForm<FieldValues>({
+        defaultValues: {
+            newPassword: '',
+            confirmPassword: ''
+        }
+    })
+
+    // Check if user is signed in with Google
+    const isGoogleUser = firebaseUser?.providerData?.some(
+        provider => provider.providerId === 'google.com'
+    ) || false
+
+    const handleUpdateProfile: SubmitHandler<FieldValues> = useCallback(async (data) => {
         if (!firebaseUser) return
 
         setIsLoading(true)
@@ -48,7 +76,7 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
             if (user) {
                 // Update Firebase profile
                 await updateProfile(user, {
-                    displayName: profileData.name,
+                    displayName: data.name,
                     photoURL: profileData.image
                 })
 
@@ -60,12 +88,21 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                         'x-firebase-uid': user.uid
                     },
                     body: JSON.stringify({
-                        name: profileData.name,
+                        name: data.name,
                         image: profileData.image
                     })
                 })
 
                 if (response.ok) {
+                    const updatedUser = await response.json()
+                    
+                    // IMPORTANT: Update local state immediately to reflect changes
+                    setCurrentUser(updatedUser)
+                    setProfileData(prev => ({ ...prev, name: data.name }))
+
+                    // This will update the navbar avatar
+                    window.dispatchEvent(new CustomEvent('userUpdated'))
+                    
                     toast.success('Profile updated successfully!')
                     setIsEditing(false)
                 } else {
@@ -77,15 +114,15 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
         } finally {
             setIsLoading(false)
         }
-    }, [firebaseUser, profileData])
+    }, [firebaseUser, profileData.image])
 
-    const handleUpdatePassword = useCallback(async () => {
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
+    const handleUpdatePassword: SubmitHandler<FieldValues> = useCallback(async (data) => {
+        if (data.newPassword !== data.confirmPassword) {
             toast.error('New passwords do not match')
             return
         }
 
-        if (passwordData.newPassword.length < 6) {
+        if (data.newPassword.length < 6) {
             toast.error('Password must be at least 6 characters')
             return
         }
@@ -96,14 +133,10 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
             const user = auth.currentUser
 
             if (user) {
-                await updatePassword(user, passwordData.newPassword)
+                await updatePassword(user, data.newPassword)
                 toast.success('Password updated successfully!')
                 setIsEditingPassword(false)
-                setPasswordData({
-                    currentPassword: '',
-                    newPassword: '',
-                    confirmPassword: ''
-                })
+                passwordForm.reset()
             }
         } catch (error: any) {
             if (error.code === 'auth/requires-recent-login') {
@@ -114,25 +147,32 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
         } finally {
             setIsLoading(false)
         }
-    }, [passwordData])
+    }, [passwordForm])
+
+    const handleCancelEdit = useCallback(() => {
+        setIsEditing(false)
+        profileForm.reset({
+            name: currentUser.name || ''
+        })
+        setProfileData(prev => ({ ...prev, name: currentUser.name || '' }))
+    }, [profileForm, currentUser.name])
+
+    const handleCancelPasswordEdit = useCallback(() => {
+        setIsEditingPassword(false)
+        passwordForm.reset()
+    }, [passwordForm])
 
     return (
         <Container>
             <div className="max-w-4xl mx-auto py-8">
                 {/* Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-3xl p-8 mb-8 text-white">
+                <div className="bg-gradient-to-r from-[#075aa3] to-[#ffcf0b] rounded-3xl p-8 mb-8 text-white">
                     <div className="flex flex-col md:flex-row items-center gap-6">
-                        <div className="relative">
-                            <Avatar src={profileData.image} size="large" />
-                            {isEditing && (
-                                <button
-                                    onClick={() => document.getElementById('imageUpload')?.click()}
-                                    className="absolute bottom-0 right-0 bg-white rounded-full p-2 shadow-lg hover:shadow-xl transition-shadow"
-                                >
-                                    <MdPhotoCamera className="w-5 h-5 text-gray-600" />
-                                </button>
-                            )}
-                        </div>
+                        <AvatarUpload
+                            value={profileData.image}
+                            onChange={handleImageChange}
+                            isEditing={isEditing}
+                        />
                         <div className="text-center md:text-left flex-1">
                             <h1 className="text-3xl font-bold mb-2">
                                 {currentUser.name || 'Welcome!'}
@@ -140,11 +180,6 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                             <p className="text-blue-100 mb-4">
                                 Member since {new Date(currentUser.createdAt).toLocaleDateString()}
                             </p>
-                            <div className="flex flex-wrap gap-2">
-                                <span className="bg-white bg-opacity-20 px-3 py-1 rounded-full text-sm text-black">
-                                    {currentUser.emailVerified ? 'Verified Account' : 'Unverified'}
-                                </span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -155,19 +190,22 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                         icon={FiHome}
                         label="Properties"
                         value={stats.properties}
-                        color="bg-green-500"
+                        color="bg-[#075aa3]"
+                        onClick={() => router.push('/properties')}
                     />
                     <StatCard
                         icon={FiCalendar}
                         label="Reservations"
                         value={stats.reservations}
-                        color="bg-blue-500"
+                        color="bg-[#075aa3]"
+                        onClick={() => router.push('/reservations')}
                     />
                     <StatCard
                         icon={FiMapPin}
                         label="Trips"
                         value={stats.trips}
-                        color="bg-purple-500"
+                        color="bg-[#075aa3]"
+                        onClick={() => router.push('/trips')}
                     />
                 </div>
 
@@ -178,7 +216,7 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-semibold text-gray-900">Personal Information</h2>
                             <button
-                                onClick={() => setIsEditing(!isEditing)}
+                                onClick={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
                                 className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                             >
                                 <FiEdit2 className="w-4 h-4" />
@@ -186,20 +224,20 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                             </button>
                         </div>
 
-                        <div className="space-y-4">
+                        <form onSubmit={profileForm.handleSubmit(handleUpdateProfile)} className="space-y-4">
                             {/* Name Field */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    <FiUser className="inline w-4 h-4 mr-2" />
-                                    Full Name
-                                </label>
+                                <div className="flex items-center mb-2">
+                                    <FiUser className="w-4 h-4 mr-2 text-gray-700" />
+                                    <span className="text-sm font-medium text-gray-700">Full Name</span>
+                                </div>
                                 {isEditing ? (
-                                    <input
-                                        type="text"
-                                        value={profileData.name}
-                                        onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="Enter your full name"
+                                    <Input
+                                        id="name"
+                                        label="Enter your full name"
+                                        register={profileForm.register}
+                                        errors={profileForm.formState.errors}
+                                        required
                                     />
                                 ) : (
                                     <p className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
@@ -210,10 +248,10 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
 
                             {/* Email Field */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    <FiMail className="inline w-4 h-4 mr-2" />
-                                    Email Address
-                                </label>
+                                <div className="flex items-center mb-2">
+                                    <FiMail className="w-4 h-4 mr-2 text-gray-700" />
+                                    <span className="text-sm font-medium text-gray-700">Email Address</span>
+                                </div>
                                 <p className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
                                     {currentUser.email}
                                 </p>
@@ -222,106 +260,102 @@ const ProfileClient = ({ currentUser, stats }: ProfileClientProps) => {
                                 </p>
                             </div>
 
-                            {/* Image Upload (hidden) */}
                             {isEditing && (
-                                <div className="hidden">
-                                    <ImageUpload
-                                        value={profileData.image}
-                                        onChange={(value) => setProfileData(prev => ({ ...prev, image: value }))}
-                                    />
+                                <div className="mt-6 flex gap-3">
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        className="flex-1 bg-[#075aa3] text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        {isLoading ? 'Saving...' : 'Save Changes'}
+                                    </button>
                                 </div>
                             )}
-                        </div>
+                        </form>
 
-                        {isEditing && (
-                            <div className="mt-6 flex gap-3">
-                                <button
-                                    onClick={handleUpdateProfile}
-                                    disabled={isLoading}
-                                    className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {isLoading ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </div>
-                        )}
+
                     </div>
 
                     {/* Security Settings */}
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-semibold text-gray-900">Security</h2>
-                            <button
-                                onClick={() => setIsEditingPassword(!isEditingPassword)}
-                                className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            >
-                                <FiLock className="w-4 h-4" />
-                                Change Password
-                            </button>
+                            {/* Conditionally render password change button based on auth provider */}
+                            {!isGoogleUser ? (
+                                <button
+                                    onClick={() => isEditingPassword ? handleCancelPasswordEdit() : setIsEditingPassword(true)}
+                                    className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                >
+                                    <FiLock className="w-4 h-4" />
+                                    {isEditingPassword ? 'Cancel' : 'Change Password'}
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2 px-4 py-2 text-gray-500 bg-gray-50 rounded-lg">
+                                    <FiLock className="w-4 h-4" />
+                                    <span className="text-sm">Managed by Google</span>
+                                </div>
+                            )}
                         </div>
 
-                        {isEditingPassword ? (
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.newPassword}
-                                        onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="Enter new password"
-                                    />
+                        {/* Show Google user message */}
+                        {isGoogleUser && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                                <div className="flex items-center">
+                                    <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-blue-700 text-sm">
+                                        You're signed in with Google. Password changes are managed through your Google account.
+                                    </span>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Confirm New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.confirmPassword}
-                                        onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        placeholder="Confirm new password"
-                                    />
-                                </div>
+                            </div>
+                        )}
+
+                        {!isGoogleUser && isEditingPassword ? (
+                            <form onSubmit={passwordForm.handleSubmit(handleUpdatePassword)} className="space-y-4">
+                                <Input
+                                    id="newPassword"
+                                    label="Enter new password"
+                                    type="password"
+                                    register={passwordForm.register}
+                                    errors={passwordForm.formState.errors}
+                                    required
+                                />
+                                <Input
+                                    id="confirmPassword"
+                                    label="Confirm new password"
+                                    type="password"
+                                    register={passwordForm.register}
+                                    errors={passwordForm.formState.errors}
+                                    required
+                                />
                                 <div className="flex gap-3 pt-4">
                                     <button
-                                        onClick={handleUpdatePassword}
+                                        type="submit"
                                         disabled={isLoading}
-                                        className="flex-1 bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        className="flex-1 bg-[#075aa3] text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     >
                                         {isLoading ? 'Updating...' : 'Update Password'}
                                     </button>
                                     <button
-                                        onClick={() => setIsEditingPassword(false)}
+                                        type="button"
+                                        onClick={handleCancelPasswordEdit}
                                         className="px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                                     >
                                         Cancel
                                     </button>
                                 </div>
-                            </div>
+                            </form>
                         ) : (
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        <FiLock className="inline w-4 h-4 mr-2" />
-                                        Password
-                                    </label>
-                                    <p className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
-                                        ••••••••••••
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Account Status
-                                    </label>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`w-3 h-3 rounded-full ${currentUser.emailVerified ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                                        <span className="text-sm text-gray-600">
-                                            {currentUser.emailVerified ? 'Email Verified' : 'Email Not Verified'}
-                                        </span>
+                                    <div className="flex items-center mb-2">
+                                        <FiLock className="w-4 h-4 mr-2 text-gray-700" />
+                                        <span className="text-sm font-medium text-gray-700">Password</span>
                                     </div>
+                                    <p className="px-4 py-3 bg-gray-50 rounded-lg text-gray-900">
+                                        {isGoogleUser ? 'Managed by Google' : '••••••••••••'}
+                                    </p>
                                 </div>
                             </div>
                         )}
